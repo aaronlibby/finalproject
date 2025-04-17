@@ -1,0 +1,124 @@
+body {
+    font-family: Montserrat, sans-serif;
+    font-size: large;
+    background-color: rgba(96, 92, 92, 0.749);
+    color: rgb(255, 255, 255);
+    background-image: url(https://images.squarespace-cdn.com/content/v1/5a94fdca45776ee281b9fbfd/1636994272275-QA3DZ8KN6ZED3FJR8UUI/Screen+Shot+2021-09-19+at+7.34.31+PM.png);
+    background-repeat: no-repeat;
+    background-size: cover;
+    
+    
+}
+
+a {
+    color: rgb(255, 255, 255);
+    /* background-color: gray; */;
+    font-family: 'montserrat', sans-serif;
+}
+
+h1{
+    text-align: center;
+    font-size: xxx-large;
+    color: white;
+    text-shadow: 2px 2px 4px black;
+    font-family: 'montserrat', sans-serif;
+}
+h2 {
+    text-align: center;
+    font-size: large;
+    color: rgb(255, 255, 255);
+    text-shadow: 2px 2px 4px black;
+    font-family: 'montserrat', sans-serif;
+}
+
+img {
+    /* border: 5px solid white; */
+    padding: 5px;
+    height: 450px;
+    /* margin: auto;
+    display: block; */
+}
+
+.rizz {
+    font-family: Algerian, Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif, sans-serif;
+    color: hotpink;
+    border: 5px dashed lime;
+    font-size: 400%;
+    font-weight: bolder;
+    background-color: red;
+}
+
+.rizz:hover {
+    font-size: 450%;
+    color: blue;
+    border: 10px solid cyan;
+}
+
+li {
+    width: fit-content;
+    /* text-align: center; */
+    line-height: 1.5;
+}
+
+/* li:hover {
+    text-decoration: underline;
+    background-color: gray;
+} */
+h3{
+    font-size: x-large;
+/* text-align: center; */
+}
+
+.flex-container {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 20px;
+}
+
+.list-section {
+  flex: 1;
+  min-width: 300px;
+  color: white;
+}
+
+.media-section {
+  flex: 1;
+  min-width: 320px;
+}
+.about-section {
+    display: flex;
+    align-items: flex-start;
+    gap: 30px;
+    max-width: 1000px;
+    margin: 40px auto;
+    padding: 20px;
+    flex-wrap: wrap;
+  }
+  
+  /* .about-image img {
+    width: 300px;
+    max-width: 100%;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  } */
+  
+  .about-text {
+    flex: 1;
+    min-width: 300px;
+  }
+  p {
+    line-height: 1.5;
+    font-size: large;
+    color: white;
+  }
+  h4 {
+    font-size: xx-large;
+    color: white;
+  }
+  a:hover {
+    color: rgb(133, 27, 214) !important;
+    text-decoration: underline !important;
+}

@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Endless Runner (8-Bit V4)</title> <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0; /* Light grey background */
+            margin: 0;
+            font-family: 'Press Start 2P', cursive; /* Apply arcade font */
+            overflow: hidden; /* Hide scrollbars */
+            flex-direction: column; /* Stack canvas and controls vertically */
+        }
+
+        #gameContainer {
+            border: 3px solid #333;
+            position: relative; /* Needed for absolute positioning of messages */
+            background-color: #fff; /* White background for the game area */
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            border-radius: 8px; /* Rounded corners for the container */
+            overflow: hidden; /* Keep contents within bounds */
+            width: 90%;
+            max-width: 800px; /* Max width for larger screens */
+            aspect-ratio: 2 / 1; /* Maintain aspect ratio */
+            image-rendering: pixelated; /* Ensure crisp pixels */
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+
+        canvas {
+            display: block; /* Remove extra space below canvas */
+            width: 100%;
+            height: 100%;
+            /* Background color is now drawn dynamically */
+        }
+
+        #scoreBoard {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            font-size: 1.5em; /* Larger score text */
+            color: #333;
+            z-index: 10;
+            text-shadow: 1px 1px 0px #fff; /* Slight white shadow for readability */
+        }
+
+         /* Styling for the message box (Game Over / Start) */
+        #messageBox {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(51, 51, 51, 0.85); /* Dark semi-transparent background */
+            color: #fff;
+            padding: 30px 40px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.2em;
+            z-index: 20; /* Ensure it's above the game */
+            display: none; /* Hidden by default */
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        #messageBox h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            color: #ffcc00; /* Yellowish color for title */
+        }
+
+        #messageBox p {
+            margin-bottom: 25px;
+        }
+
+        /* Styling for the restart button */
+        #restartButton {
+            padding: 12px 25px;
+            font-size: 1em;
+            color: #333;
+            background: linear-gradient(145deg, #ffffff, #e6e6e6); /* White gradient */
+            border: 2px solid #cccccc;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive; /* Apply arcade font */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+        }
+
+        #restartButton:hover {
+            background: linear-gradient(145deg, #e6e6e6, #ffffff); /* Invert gradient on hover */
+            border-color: #bbbbbb;
+            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+            transform: translateY(-2px); /* Slight lift effect */
+        }
+
+        #restartButton:active {
+            transform: translateY(0); /* Press down effect */
+            box-shadow: 0 2px 3px rgba(0,0,0,0.1);
+        }
+
+        /* Instructions below the game */
+        #instructions {
+            margin-top: 20px;
+            color: #555;
+            font-size: 0.9em;
+            text-align: center;
+            width: 90%;
+            max-width: 800px;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>TRAIL RUNNER</h1>
+    <div class="common nav">
+        <a href="../index.html">Home</a> &nbsp; | &nbsp;
+        <!-- <a href="https://k2snow.com/" target="_blank">ski site</a> &nbsp; | &nbsp; -->
+        <!-- <a href="game.html">Game</a> &nbsp; | &nbsp; -->
+        <a href="../scratch/index.html">Runner's Guide</a>
+    </div>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="scoreBoard">Score: 0</div>
+        <div id="messageBox">
+            <h2 id="messageTitle">Game Over!</h2>
+            <p id="finalScore">Your Score: 0</p>
+            <button id="restartButton">Restart Game</button>
+        </div>
+    </div>
+    <div id="instructions">Press SPACE to Jump (Hold for longer jump) / ArrowDown to Duck</div>
+
+    <script>
+        // --- Canvas Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('gameContainer');
+        ctx.imageSmoothingEnabled = false; // Ensure crisp pixels
+
+        // --- Game Elements ---
+        const scoreBoard = document.getElementById('scoreBoard');
+        const messageBox = document.getElementById('messageBox');
+        const messageTitle = document.getElementById('messageTitle');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const restartButton = document.getElementById('restartButton');
+
+        // --- Game Variables ---
+        let score = 0;
+        let gameSpeed = 5;
+        let gravity = 0.6;
+        let isGameOver = false;
+        let gameLoopId;
+        let obstacles = [];
+        let frameCount = 0;
+        let baseGameSpeed = 5;
+        let speedIncreaseInterval = 500;
+        let nextSpeedIncreaseScore = speedIncreaseInterval;
+        const pixelSize = 5;
+        const groundHeight = 30;
+        let isJumpKeyPressed = false; // Track if jump key is held
+        let isDuckKeyPressed = false; // Track if duck key is held
+
+        // --- Runner Object ---
+        const runner = {
+            x: 50,
+            y: 0,
+            baseWidth: 6 * pixelSize,
+            baseHeight: 10 * pixelSize,
+            duckHeight: 6 * pixelSize,
+            width: 6 * pixelSize,
+            height: 10 * pixelSize,
+            velocityY: 0,
+            jumpPower: -12, // Initial jump impulse
+            jumpHoldGravityFactor: 0.5, // Gravity reduction factor while holding jump
+            isJumping: false,
+            isDucking: false,
+            groundY: 0,
+            animationFrame: 0,
+            animationTimer: 0,
+            animationSpeed: 8,
+
+            // --- Pixel definitions with RED shirt ---
+            pixelsRunFrame1: [ /* ... pixel data unchanged ... */
+                { x: 2, y: 0, w: 2, h: 2, color: '#f0c0a0' }, // Head
+                { x: 1, y: 2, w: 4, h: 4, color: '#e74c3c' }, // Body (RED)
+                { x: 0, y: 3, w: 1, h: 2, color: '#f0c0a0' }, // Arm L
+                { x: 5, y: 3, w: 1, h: 2, color: '#f0c0a0' }, // Arm R
+                { x: 1, y: 6, w: 2, h: 4, color: '#333333' }, // Leg L
+                { x: 4, y: 6, w: 1, h: 3, color: '#333333' }, // Leg R (back)
+            ],
+            pixelsRunFrame2: [ /* ... pixel data unchanged ... */
+                { x: 2, y: 0, w: 2, h: 2, color: '#f0c0a0' }, // Head
+                { x: 1, y: 2, w: 4, h: 4, color: '#e74c3c' }, // Body (RED)
+                { x: 0, y: 3, w: 1, h: 2, color: '#f0c0a0' }, // Arm L
+                { x: 5, y: 3, w: 1, h: 2, color: '#f0c0a0' }, // Arm R
+                { x: 1, y: 6, w: 1, h: 3, color: '#333333' }, // Leg L (back)
+                { x: 3, y: 6, w: 2, h: 4, color: '#333333' }, // Leg R
+            ],
+             pixelsDuck: [ /* ... pixel data unchanged ... */
+                 { x: 1, y: 0, w: 4, h: 2, color: '#f0c0a0' }, // Head lower
+                 { x: 0, y: 2, w: 6, h: 4, color: '#e74c3c' }, // Body wider/lower (RED)
+             ],
+            // --- End Pixel definitions ---
+
+            getCurrentPixels() { /* ... logic unchanged ... */
+                if (this.isDucking) return this.pixelsDuck;
+                if (this.isJumping) return this.pixelsRunFrame1; // Static frame while jumping
+                return this.animationFrame === 0 ? this.pixelsRunFrame1 : this.pixelsRunFrame2;
+            },
+
+            draw() { /* ... logic unchanged ... */
+                const pixels = this.getCurrentPixels();
+                pixels.forEach(p => {
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(this.x + p.x * pixelSize, this.y + p.y * pixelSize, p.w * pixelSize, p.h * pixelSize);
+                });
+            },
+
+            jump() { /* ... logic unchanged ... */
+                if (!this.isJumping && !this.isDucking) {
+                    this.velocityY = this.jumpPower;
+                    this.isJumping = true;
+                }
+            },
+
+            duck(shouldDuck) { /* ... logic unchanged ... */
+                if (this.isJumping) return; // No ducking mid-air
+
+                if (shouldDuck && !this.isDucking) {
+                    this.isDucking = true;
+                    this.height = this.duckHeight;
+                    this.y = this.groundY + (this.baseHeight - this.duckHeight);
+                } else if (!shouldDuck && this.isDucking) {
+                    this.isDucking = false;
+                    this.height = this.baseHeight;
+                    // Only reset Y if not currently jumping (shouldn't happen based on check above, but safe)
+                    if(!this.isJumping) this.y = this.groundY;
+                }
+                this.width = this.baseWidth;
+            },
+
+            updateAnimation() { /* ... logic unchanged ... */
+                 if (!this.isJumping && !this.isDucking) {
+                     this.animationTimer++;
+                     if (this.animationTimer >= this.animationSpeed) {
+                         this.animationFrame = 1 - this.animationFrame;
+                         this.animationTimer = 0;
+                     }
+                 } else {
+                     this.animationTimer = 0;
+                 }
+            },
+
+            updatePhysics(currentGroundLevelY) { /* ... logic unchanged ... */
+                this.groundY = currentGroundLevelY - this.baseHeight; // Ground relative to non-ducking height
+
+                // Apply gravity - reduced if jump key is held and moving upwards
+                let currentGravity = gravity;
+                if (isJumpKeyPressed && this.velocityY < 0) {
+                    currentGravity *= this.jumpHoldGravityFactor;
+                }
+
+                // Apply velocity only if not ducking on the ground
+                if (!this.isDucking || this.isJumping) {
+                    this.velocityY += currentGravity;
+                    this.y += this.velocityY;
+                }
+
+                // Ground collision detection
+                 let currentGround = this.isDucking ? currentGroundLevelY - this.duckHeight : currentGroundLevelY - this.baseHeight;
+
+                 if (this.y >= currentGround) {
+                     this.y = currentGround;
+                     this.velocityY = 0;
+                     // Only set isJumping false if we actually landed (not if we started ducking on ground)
+                     if (this.isJumping) {
+                        this.isJumping = false;
+                     }
+                      // Ensure correct height is set when landing/on ground
+                     if (!this.isDucking) {
+                         this.height = this.baseHeight;
+                     } else {
+                         this.height = this.duckHeight;
+                     }
+                 }
+            }
+        };
+
+        // --- Obstacle Classes ---
+        class TreeObstacle { /* ... constructor, draw, update unchanged ... */
+             constructor(canvasWidth, canvasHeight, groundHeight, xOffset = 0) {
+                 const treeHeightPixels = Math.floor(Math.random() * 4) + 8;
+                 const trunkHeight = 3;
+                 const leavesHeight = treeHeightPixels - trunkHeight;
+
+                 this.width = 5 * pixelSize;
+                 this.height = treeHeightPixels * pixelSize;
+                 this.x = canvasWidth + xOffset;
+                 this.y = canvasHeight - groundHeight - this.height;
+                 this.colorTrunk = '#8b4513';
+                 this.colorLeaves = '#228b22';
+                 this.type = 'tree';
+
+                 this.pixelDimensions = {
+                     trunk: { x: 2, y: leavesHeight, w: 1, h: trunkHeight },
+                     leaves: [
+                         { x: 1, y: leavesHeight - 1, w: 3, h: 1 },
+                         { x: 0, y: leavesHeight - 3, w: 5, h: 2 },
+                         { x: 1, y: leavesHeight - 5, w: 3, h: 2 },
+                         { x: 2, y: 0, w: 1, h: leavesHeight - 5 }
+                     ]
+                 };
+                 this.pixelDimensions.leaves[0].y = leavesHeight -1;
+                 this.pixelDimensions.leaves[1].y = Math.max(0, leavesHeight - 3);
+                 this.pixelDimensions.leaves[1].h = Math.min(2, leavesHeight -1 - this.pixelDimensions.leaves[1].y);
+                 this.pixelDimensions.leaves[2].y = Math.max(0, leavesHeight - 5);
+                 this.pixelDimensions.leaves[2].h = Math.min(2, leavesHeight -1 - this.pixelDimensions.leaves[2].y);
+                 this.pixelDimensions.leaves[3].y = 0;
+                 this.pixelDimensions.leaves[3].h = Math.max(0, leavesHeight - 5);
+             }
+             draw() {
+                 const trunk = this.pixelDimensions.trunk;
+                 ctx.fillStyle = this.colorTrunk;
+                 ctx.fillRect(this.x + trunk.x * pixelSize, this.y + trunk.y * pixelSize, trunk.w * pixelSize, trunk.h * pixelSize);
+                 ctx.fillStyle = this.colorLeaves;
+                 this.pixelDimensions.leaves.forEach(p => {
+                      if (p.h > 0) {
+                         ctx.fillRect(this.x + p.x * pixelSize, this.y + p.y * pixelSize, p.w * pixelSize, p.h * pixelSize);
+                      }
+                 });
+             }
+             update() {
+                 this.x -= gameSpeed;
+             }
+         }
+
+        class BirdObstacle {
+            constructor(canvasWidth, canvasHeight, groundHeight) {
+                this.width = 6 * pixelSize;
+                this.height = 4 * pixelSize;
+                this.x = canvasWidth;
+
+                // --- ADJUSTED Bird Height Calculation ---
+                // Target the bird's bottom edge height relative to the ground.
+                // It should be slightly above the ducking runner's head and slightly below the standing runner's head.
+                const clearance = pixelSize * 2; // Min space above/below runner head
+                const minBottomHeight = runner.duckHeight + clearance; // Bird bottom must be above ducking head + clearance
+                const maxBottomHeight = runner.baseHeight - clearance; // Bird bottom must be below standing head - clearance
+
+                // Ensure max is actually higher than min (could happen if runner height diff is small)
+                let targetBottomHeight;
+                if (maxBottomHeight > minBottomHeight) {
+                     targetBottomHeight = Math.random() * (maxBottomHeight - minBottomHeight) + minBottomHeight;
+                } else {
+                     // Fallback if heights are too close: place it centered in the small gap, or just above duck height
+                     targetBottomHeight = (runner.baseHeight + runner.duckHeight) / 2;
+                     console.warn("Runner height difference too small for varied bird height, using fallback.");
+                }
+
+                // Calculate the bird's top Y coordinate based on its desired bottom height relative to ground
+                // bird_top_y = canvas_height - ground_height - bird_bottom_height_relative_to_ground
+                this.y = canvasHeight - groundHeight - targetBottomHeight;
+
+                // Ensure bird doesn't spawn below ground (safety check)
+                this.y = Math.max(0, this.y);
+                // --- End ADJUSTED Bird Height Calculation ---
+
+
+                this.color = '#555555';
+                this.type = 'bird';
+                this.animationFrame = 0;
+                this.animationTimer = 0;
+                this.animationSpeed = 10;
+
+                 this.pixelsFrame1 = [ /* ... pixel data unchanged ... */
+                     { x: 0, y: 1, w: 2, h: 1, color: this.color },
+                     { x: 4, y: 1, w: 2, h: 1, color: this.color },
+                     { x: 2, y: 0, w: 2, h: 2, color: this.color }, // Body
+                 ];
+                 this.pixelsFrame2 = [ /* ... pixel data unchanged ... */
+                     { x: 0, y: 0, w: 2, h: 1, color: this.color },
+                     { x: 4, y: 0, w: 2, h: 1, color: this.color },
+                     { x: 2, y: 1, w: 2, h: 2, color: this.color }, // Body
+                 ];
+            }
+
+            draw() { /* ... draw logic unchanged ... */
+                 this.animationTimer++;
+                 if (this.animationTimer >= this.animationSpeed) {
+                     this.animationFrame = 1 - this.animationFrame;
+                     this.animationTimer = 0;
+                 }
+                 const pixels = this.animationFrame === 0 ? this.pixelsFrame1 : this.pixelsFrame2;
+                 pixels.forEach(p => {
+                     ctx.fillStyle = p.color;
+                     ctx.fillRect(
+                         this.x + p.x * pixelSize,
+                         this.y + p.y * pixelSize,
+                         p.w * pixelSize,
+                         p.h * pixelSize
+                     );
+                 });
+            }
+
+            update() { /* ... update logic unchanged ... */
+                this.x -= gameSpeed * 1.1; // Birds still slightly faster
+            }
+        }
+
+
+        // --- Game Functions ---
+
+        function resizeCanvas() {
+            canvas.width = gameContainer.clientWidth;
+            canvas.height = gameContainer.clientHeight;
+            ctx.imageSmoothingEnabled = false;
+
+            runner.groundY = canvas.height - groundHeight - runner.baseHeight;
+            if (!runner.isJumping && !runner.isDucking) {
+                 runner.y = runner.groundY;
+            } else if (runner.isDucking) {
+                 runner.y = runner.groundY + (runner.baseHeight - runner.duckHeight);
+            }
+
+            // Obstacle repositioning on resize
+            obstacles.forEach(obstacle => {
+                 if (obstacle.type === 'tree') {
+                     obstacle.y = canvas.height - groundHeight - obstacle.height;
+                 } else if (obstacle.type === 'bird') {
+                      // --- ADJUSTED Recalculate bird height on resize ---
+                      const clearance = pixelSize * 2;
+                      const minBottomHeight = runner.duckHeight + clearance;
+                      const maxBottomHeight = runner.baseHeight - clearance;
+                      let targetBottomHeight;
+                      if (maxBottomHeight > minBottomHeight) {
+                           // Try to maintain relative position within the valid range if possible
+                           // This is tricky, simplest is to just recalculate randomly
+                           targetBottomHeight = Math.random() * (maxBottomHeight - minBottomHeight) + minBottomHeight;
+                      } else {
+                           targetBottomHeight = (runner.baseHeight + runner.duckHeight) / 2;
+                      }
+                      obstacle.y = canvas.height - groundHeight - targetBottomHeight;
+                      obstacle.y = Math.max(0, obstacle.y); // Safety check
+                      // --- End ADJUSTED Recalculate ---
+                 }
+            });
+
+            if (!isGameOver) {
+                drawGame();
+            } else {
+                drawGame();
+                drawGround();
+                drawBackground();
+                showGameOverScreen();
+            }
+        }
+
+        function drawBackground() { /* ... drawing unchanged ... */
+            ctx.fillStyle = '#d0e4fe';
+            ctx.fillRect(0, 0, canvas.width, canvas.height - groundHeight);
+            ctx.fillStyle = '#c0c0c0';
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height - groundHeight - 50);
+            ctx.lineTo(canvas.width * 0.2, canvas.height - groundHeight - 100);
+            ctx.lineTo(canvas.width * 0.5, canvas.height - groundHeight - 40);
+            ctx.lineTo(canvas.width * 0.8, canvas.height - groundHeight - 120);
+            ctx.lineTo(canvas.width, canvas.height - groundHeight - 60);
+            ctx.lineTo(canvas.width, canvas.height - groundHeight);
+            ctx.lineTo(0, canvas.height - groundHeight);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#a0a0a0';
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height - groundHeight - 20);
+            ctx.lineTo(canvas.width * 0.3, canvas.height - groundHeight - 70);
+            ctx.lineTo(canvas.width * 0.6, canvas.height - groundHeight - 30);
+            ctx.lineTo(canvas.width * 0.9, canvas.height - groundHeight - 80);
+            ctx.lineTo(canvas.width, canvas.height - groundHeight - 40);
+            ctx.lineTo(canvas.width, canvas.height - groundHeight);
+            ctx.lineTo(0, canvas.height - groundHeight);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawGround() { /* ... drawing unchanged ... */
+            ctx.fillStyle = '#8c5a3b';
+            ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
+            ctx.fillStyle = '#228b22';
+            for(let i = 0; i < canvas.width; i += 20) {
+                ctx.fillRect(i + Math.random() * 5, canvas.height - groundHeight - 5, pixelSize / 2, 5);
+            }
+        }
+
+        function generateObstacle() { /* ... logic unchanged ... */
+            const minObstacleGap = 250 + gameSpeed * 15;
+            const generationChance = 0.025;
+            const treeGroupChance = 0.2;
+            const birdChance = 0.4;
+            let lastObstacleX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : -Infinity;
+            let lastObstacleWidth = obstacles.length > 0 ? obstacles[obstacles.length - 1].width : 0;
+
+            if (canvas.width - (lastObstacleX + lastObstacleWidth) > minObstacleGap) {
+                 if (Math.random() < generationChance) {
+                     if (Math.random() < treeGroupChance) {
+                         const groupSize = Math.random() < 0.6 ? 2 : 3;
+                         const treeSpacing = pixelSize * (Math.random() * 4 + 4);
+                         let currentOffset = 0;
+                         for (let i = 0; i < groupSize; i++) {
+                             const newTree = new TreeObstacle(canvas.width, canvas.height, groundHeight, currentOffset);
+                             obstacles.push(newTree);
+                             currentOffset += newTree.width + treeSpacing;
+                         }
+                     } else {
+                         if (Math.random() < birdChance) {
+                             obstacles.push(new BirdObstacle(canvas.width, canvas.height, groundHeight));
+                         } else {
+                             obstacles.push(new TreeObstacle(canvas.width, canvas.height, groundHeight));
+                         }
+                     }
+                 }
+            }
+        }
+
+        function handleObstacles() { /* ... logic unchanged ... */
+            generateObstacle();
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].update();
+                obstacles[i].draw();
+                if (obstacles[i].x + obstacles[i].width < 0) {
+                    obstacles.splice(i, 1);
+                }
+            }
+        }
+
+        function checkCollision() { /* ... logic unchanged ... */
+             const runnerLeft = runner.x;
+             const runnerRight = runner.x + runner.width;
+             const runnerTop = runner.y;
+             const runnerBottom = runner.y + runner.height;
+
+             for (let obstacle of obstacles) {
+                 const obsLeft = obstacle.x;
+                 const obsRight = obstacle.x + obstacle.width;
+                 const obsTop = obstacle.y;
+                 const obsBottom = obstacle.y + obstacle.height;
+
+                 if (
+                     runnerLeft < obsRight &&
+                     runnerRight > obsLeft &&
+                     runnerTop < obsBottom &&
+                     runnerBottom > obsTop
+                 ) {
+                     gameOver();
+                     return true;
+                 }
+             }
+             return false;
+         }
+
+        function updateScore() { /* ... logic unchanged ... */
+            score++;
+            scoreBoard.textContent = `Score: ${score}`;
+            if (score >= nextSpeedIncreaseScore) {
+                gameSpeed += 0.5;
+                nextSpeedIncreaseScore += speedIncreaseInterval;
+                console.log(`Speed increased to: ${gameSpeed.toFixed(1)}`);
+            }
+        }
+
+        function showGameOverScreen() { /* ... logic unchanged ... */
+             finalScoreDisplay.textContent = `Your Score: ${score}`;
+             messageBox.style.display = 'block';
+        }
+
+        function gameOver() { /* ... logic unchanged ... */
+            isGameOver = true;
+            cancelAnimationFrame(gameLoopId);
+            showGameOverScreen();
+            console.log("Game Over! Final Score:", score);
+            isJumpKeyPressed = false;
+            isDuckKeyPressed = false;
+        }
+
+        function resetGame() { /* ... logic unchanged ... */
+            score = 0;
+            gameSpeed = baseGameSpeed;
+            nextSpeedIncreaseScore = speedIncreaseInterval;
+            obstacles = [];
+            frameCount = 0;
+            isGameOver = false;
+            messageBox.style.display = 'none';
+            runner.isDucking = false;
+            runner.isJumping = false;
+            runner.height = runner.baseHeight;
+            runner.width = runner.baseWidth;
+            runner.y = runner.groundY;
+            runner.velocityY = 0;
+            runner.animationFrame = 0;
+            runner.animationTimer = 0;
+            isJumpKeyPressed = false;
+            isDuckKeyPressed = false;
+            startGameLoop();
+        }
+
+        function drawGame() { /* ... logic unchanged ... */
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBackground();
+            drawGround();
+            runner.updatePhysics(canvas.height - groundHeight);
+            runner.updateAnimation();
+            runner.draw();
+            handleObstacles();
+        }
+
+        function gameLoop() { /* ... logic unchanged ... */
+            if (isGameOver) return;
+            frameCount++;
+            drawGame();
+            if (checkCollision()) return;
+            updateScore();
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        function startGameLoop() { /* ... logic unchanged ... */
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            resizeCanvas();
+            isGameOver = false;
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Event Listeners --- /* ... logic unchanged ... */
+        window.addEventListener('keydown', (e) => {
+            if (isGameOver) return;
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
+                 if (!isJumpKeyPressed) {
+                     runner.jump();
+                     isJumpKeyPressed = true;
+                 }
+            } else if (e.code === 'ArrowDown') {
+                if (!isDuckKeyPressed) {
+                    runner.duck(true);
+                    isDuckKeyPressed = true;
+                }
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+             if (isGameOver) return;
+             if (e.code === 'Space' || e.code === 'ArrowUp') {
+                 isJumpKeyPressed = false;
+             } else if (e.code === 'ArrowDown') {
+                 runner.duck(false);
+                 isDuckKeyPressed = false;
+             }
+         });
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!isGameOver && !runner.isJumping && !runner.isDucking) {
+                 runner.jump();
+                 isJumpKeyPressed = true;
+            }
+        });
+         canvas.addEventListener('touchend', (e) => {
+             e.preventDefault();
+             isJumpKeyPressed = false;
+         });
+        restartButton.addEventListener('click', resetGame);
+        window.addEventListener('resize', resizeCanvas);
+
+        // --- Initial Setup ---
+        window.onload = () => {
+            resizeCanvas();
+            startGameLoop();
+        };
+
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,21 @@
+body{
+    font-family: 'Montserrat', serif;
+    background-color: rgb(228, 229, 238);
+}
+h1,h2, h3, .subheading{
+    font-family: 'Montserrat', serif !important;
+}
+a:hover {
+    color: rgb(27, 130, 214) !important;
+    text-decoration: underline !important;
+}
+footer{
+    font-family: 'Montserrat', serif !important;
+    /* background-color: rgb(228, 229, 238) !important; */
+    color: black !important;
+    text-align: center !important;
+    font-size: 60% !important;
+    font-style: italic !important;
+    padding: 10px !important;
+    margin-top: 20px !important;
+}
